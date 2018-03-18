@@ -13,7 +13,6 @@ public class HTTPServer {
 				(new Handler(clientSocket)).start();
 			}
 		}
-		
 	}
 	  
 	public ServerSocket serverSocket;
