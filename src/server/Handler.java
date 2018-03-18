@@ -7,7 +7,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.text.SimpleDateFormat;
 
-public class Handler {
+public class Handler implements Runnable {
 
 	public Handler(Socket clientSocket) throws IOException {
 		this.clientSocket = clientSocket;
@@ -15,7 +15,15 @@ public class Handler {
 		this.outToClient = new DataOutputStream(this.clientSocket.getOutputStream());
 	}
 	
-	public void start() {
+	public void run() {
+		try {
+			while (this.inFromClient.available() == 0) {
+				
+			}
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		
 		try {
 			byte[] request = new byte[1000000];
 			this.inFromClient.read(request);
@@ -25,7 +33,7 @@ public class Handler {
 			this.statusCode = 500;
 		}
 		
-		if (!(this.containsHostHeader()) || !(getHost() == getRequestedHost()) ) {
+		if (!(containsHostHeader()) || !(getHost().equals(getRequestedHost())) ) {
 			this.statusCode = 400;
 		}
 		
@@ -44,6 +52,20 @@ public class Handler {
 		else {
 			this.statusCode = 400;
 		}
+		
+		if (this.statusCode != 200) {
+			try {
+				String fileName = getRequestedFile();
+				byte[] pageToReturn = readFile(fileName);
+				String header = createHeader(fileName, pageToReturn);
+				outToClient.writeChars(header);
+			}
+			catch (IOException exc) {
+				exc.printStackTrace();
+			}
+		}
+		
+		end();
 	}
 	
 	private void executeGET() {
@@ -52,7 +74,6 @@ public class Handler {
 		
 		if (this.statusCode == 200) {
 			fileName = getRequestedFile();
-			
 			try {
 				pageToReturn = readFile(fileName);
 			}
@@ -71,7 +92,10 @@ public class Handler {
 				this.statusCode = 500;
 			}
 		}
-		
+	}
+
+	private void end() {
+		run();
 	}
 
 	private String createHeader(String fileName, byte[] pageToReturn) {
@@ -97,7 +121,7 @@ public class Handler {
 		header += "Content-type: ";
 		int begin = fileName.indexOf(".") + 1;
 		String fileExtension = fileName.substring(begin);
-		if (fileExtension == "html") {
+		if (fileExtension.equalsIgnoreCase("html")) {
 			header += "text/html";
 		}
 		else {
@@ -105,17 +129,17 @@ public class Handler {
 		}
 		header += "\r\n";
 		
-		header += "Content-length: " + pageToReturn.length + "\r\n";
+		header += "Content-Length: " + pageToReturn.length + "\r\n";
 		
 		long dateTime = System.currentTimeMillis();				
 		SimpleDateFormat dateTimeFormat = new SimpleDateFormat("E, dd MMM Y HH:mm:ss");
-		header += "Date:  " + dateTimeFormat.format(dateTime) + " GMT\r\n\r\n";
+		header += "Date: " + dateTimeFormat.format(dateTime) + " GMT\r\n\r\n";
 		
 		return header;
 	}
 
 	private byte[] readFile(String fileName) throws IOException {
-		Path filePath = Paths.get(fileName);
+		Path filePath = Paths.get("Webpage" + fileName);
 		return Files.readAllBytes(filePath);
 	}
 
@@ -131,17 +155,57 @@ public class Handler {
 	}
 
 	private void executeHEAD() {
-		// TODO Auto-generated method stub
+		byte[] pageToReturn = null;
+		String fileName = null;
 		
+		if (this.statusCode == 200) {
+			fileName = getRequestedFile();
+			try {
+				pageToReturn = readFile(fileName);
+			}
+			catch (IOException exc) {
+				this.statusCode = 404;
+			}
+		}
+		
+		if (this.statusCode == 200) {
+			try {
+				String header = createHeader(fileName, pageToReturn);
+				outToClient.writeBytes(header);
+			}
+			catch (IOException exc) {
+				this.statusCode = 500;
+			}
+		}
 	}
 
 	private void executePUT() {
-		// TODO Auto-generated method stub
-		
+		if (this.statusCode == 200) {
+			try {
+				int begin = this.sentence.indexOf("Content-Length:");
+				int end = this.sentence.indexOf("\r\n", begin);
+				int lengthBody = Integer.parseInt(this.sentence.substring(begin + 16, end));
+			
+				String fileName = getRequestedFile();
+				String filePath = "Webpage" + fileName;
+				begin = this.sentence.indexOf("\r\n\r\n");
+				String fileToWrite = this.sentence.substring(begin+4, begin+4+lengthBody);
+				File file = new File(filePath);
+				FileWriter writer = new FileWriter(file);
+				writer.write(fileToWrite);
+				writer.close();
+
+				String header = createHeader(fileName, new byte[lengthBody]);
+				System.out.println("header created");
+				outToClient.writeBytes(header);
+			}
+			catch (IOException exc) {
+				this.statusCode = 500;
+			}
+		}
 	}
 
 	private void executePOST() {
-		// TODO Auto-generated method stub
 		
 	}
 
@@ -167,7 +231,7 @@ public class Handler {
 	public BufferedInputStream inFromClient;
 	public DataOutputStream outToClient;
 	public int statusCode = 200;
-	public String hostName = "localhost";
+	public String hostName = "localhost:9999";
 	public String sentence;
 	public int HTTP;
 
