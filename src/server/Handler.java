@@ -26,17 +26,23 @@ public class Handler implements Runnable {
 			this.inFromClient = new BufferedInputStream(this.clientSocket.getInputStream());
 			this.outToClient = new DataOutputStream(this.clientSocket.getOutputStream());
 		} catch (IOException e) {
-			this.statusCode = 500;
+			setStatusCode(500);
 		}
 	}
 	
+	private void setStatusCode(int status) {
+		if (this.statusCode == 200) {
+			this.statusCode = status;
+		}
+	}
+
 	public void run() {
 		int nextByte = 0;
 		if (this.statusCode == 200) {
 			try {
 				nextByte = this.inFromClient.read();
 			} catch (IOException e) {
-				this.statusCode = 500;
+				setStatusCode(500);
 			}
 			if (nextByte == -1) {
 				endConnection();
@@ -52,12 +58,14 @@ public class Handler implements Runnable {
 				setHTTP();
 			}
 			catch (IOException exc) {
-				this.statusCode = 500;
+				setStatusCode(500);
 			}
 			
 			if (this.statusCode == 200) {
 				if (!(containsHostHeader()) || !(getHost().equals(getRequestedHost())) ) {
-					this.statusCode = 400;
+					System.out.println(getRequestedHost());
+					System.out.println(getHost());
+					setStatusCode(400);
 				}
 				if (this.sentence.contains("GET")) {
 					executeGET();
@@ -72,7 +80,7 @@ public class Handler implements Runnable {
 					executePOST();
 				}
 				else {
-					this.statusCode = 400;
+					setStatusCode(400);
 				}
 			}
 			
@@ -83,7 +91,7 @@ public class Handler implements Runnable {
 					pageToReturn = readFile(fileName);
 				}
 				catch (IOException exc) {
-					this.statusCode = 404;
+					setStatusCode(404);
 				}
 				String header = createHeader(fileName, pageToReturn);
 				try {
@@ -113,7 +121,7 @@ public class Handler implements Runnable {
 	 */
 
 	private void executeGET() {
-		byte[] pageToReturn = null;
+		byte[] pageToReturn = new byte[0];
 		String fileName = null;
 		
 		if (this.statusCode == 200) {
@@ -122,19 +130,16 @@ public class Handler implements Runnable {
 				pageToReturn = readFile(fileName);
 			}
 			catch (IOException exc) {
-				this.statusCode = 404;
+				setStatusCode(400);
 			}
 		}
 		
-		if (this.statusCode == 200) {
-			try {
-				String header = createHeader(fileName, pageToReturn);
-				outToClient.writeBytes(header);
-				outToClient.write(pageToReturn);
-			}
-			catch (IOException exc) {
-				this.statusCode = 500;
-			}
+		String header = createHeader(getRequestedFile(), pageToReturn);
+		try {
+			outToClient.writeBytes(header);
+			outToClient.write(pageToReturn);
+		} catch (IOException e) {
+			e.printStackTrace();
 		}
 	}
 	
@@ -147,7 +152,7 @@ public class Handler implements Runnable {
 	 */
 	
 	private void executeHEAD() {
-		byte[] pageToReturn = null;
+		byte[] pageToReturn = new byte[0];
 		String fileName = null;
 		
 		if (this.statusCode == 200) {
@@ -156,18 +161,15 @@ public class Handler implements Runnable {
 				pageToReturn = readFile(fileName);
 			}
 			catch (IOException exc) {
-				this.statusCode = 404;
+				setStatusCode(404);
 			}
 		}
 		
-		if (this.statusCode == 200) {
-			try {
-				String header = createHeader(fileName, pageToReturn);
-				outToClient.writeBytes(header);
-			}
-			catch (IOException exc) {
-				this.statusCode = 500;
-			}
+		String header = createHeader(getRequestedFile(), pageToReturn);
+		try {
+			outToClient.writeBytes(header);
+		} catch (IOException e) {
+			e.printStackTrace();
 		}
 	}
 	
@@ -180,12 +182,12 @@ public class Handler implements Runnable {
 	 */
 	
 	private void executePUT() {
+		int lengthBody = 0;
 		if (this.statusCode == 200) {
 			try {
 				int begin = this.sentence.indexOf("Content-Length:");
 				int end = this.sentence.indexOf("\r\n", begin);
-				int lengthBody = Integer.parseInt(this.sentence.substring(begin + 16, end));
-			
+				lengthBody = Integer.parseInt(this.sentence.substring(begin + 16, end));
 				String fileName = getRequestedFile();
 				String filePath = "Webpage" + fileName;
 				begin = this.sentence.indexOf("\r\n\r\n");
@@ -194,13 +196,17 @@ public class Handler implements Runnable {
 				FileWriter writer = new FileWriter(file);
 				writer.write(fileToWrite);
 				writer.close();
-
-				String header = createHeader(fileName, new byte[lengthBody]);
-				outToClient.writeBytes(header);
 			}
 			catch (IOException exc) {
-				this.statusCode = 500;
+				setStatusCode(500);
 			}
+			
+		}
+		String header = createHeader(getRequestedFile(), new byte[lengthBody]);
+		try {
+			outToClient.writeBytes(header);
+		} catch (IOException e) {
+			e.printStackTrace();
 		}
 	}
 
@@ -232,6 +238,27 @@ public class Handler implements Runnable {
 	private String createHeader(String fileName, byte[] pageToReturn) {
 		String header = "HTTP/1." + this.HTTP + " ";
 		
+		long dateTime = System.currentTimeMillis();		
+		SimpleDateFormat dateTimeFormat = new SimpleDateFormat("E, dd MMM Y HH:mm:ss");
+		if (this.sentence.contains("If-Modified-Since: ")) {
+			if (! this.sentence.contains("GET") || ! this.sentence.contains("GET")) {
+				setStatusCode(400);
+			}
+			int begin = this.sentence.indexOf("If-Modified-Since:");
+			int end = this.sentence.indexOf("GMT", begin);
+			String ifModifiedSince = this.sentence.substring(begin + 19, end);
+			ifModifiedSince = ifModifiedSince.trim();
+			try {
+				Date date1 = dateTimeFormat.parse(dateTimeFormat.format(dateTime));
+				Date date2 = dateTimeFormat.parse(ifModifiedSince);
+				if (date1.before(date2)) {
+					setStatusCode(304);
+				}
+			} catch (ParseException e) {
+				setStatusCode(500);
+			}
+		}
+		
 		if (this.statusCode == 200) {
 			header += "200 OK";
 		}
@@ -239,6 +266,7 @@ public class Handler implements Runnable {
 			header += "404 Not Found";
 		}
 		else if (this.statusCode == 400) {
+			System.out.println("400");
 			header += "400 Bad Request";
 		}
 		else if (this.statusCode == 500) {
@@ -263,29 +291,8 @@ public class Handler implements Runnable {
 		if (this.statusCode == 200) {
 			header += "Content-Length: " + pageToReturn.length + "\r\n";
 		}
-		
-		long dateTime = System.currentTimeMillis();				
-		SimpleDateFormat dateTimeFormat = new SimpleDateFormat("E, dd MMM Y HH:mm:ss");
+				
 		header += "Date: " + dateTimeFormat.format(dateTime) + " GMT\r\n\r\n";
-		
-		if (this.sentence.contains("If-Modified-Since: ")) {
-			if (! this.sentence.contains("GET") || ! this.sentence.contains("GET")) {
-				this.statusCode = 400;
-			}
-			begin = this.sentence.indexOf("If-Modified-Since:");
-			int end = this.sentence.indexOf("GMT", begin);
-			String ifModifiedSince = this.sentence.substring(begin + 19, end);
-			ifModifiedSince = ifModifiedSince.trim();
-			try {
-				Date date1 = dateTimeFormat.parse(dateTimeFormat.format(dateTime));
-				Date date2 = dateTimeFormat.parse(ifModifiedSince);
-				if (date1.before(date2)) {
-					this.statusCode = 304;
-				}
-			} catch (ParseException e) {
-				this.statusCode = 500;
-			}
-		}
 		
 		return header;
 	}
