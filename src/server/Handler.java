@@ -178,7 +178,32 @@ public class Handler implements Runnable {
 	}
 
 	private void executePOST() {
-		
+		int lengthBody = 0;
+		if (this.statusCode == 200) {
+			try {
+				int begin = this.sentence.indexOf("Content-Length:");
+				int end = this.sentence.indexOf("\r\n", begin);
+				lengthBody = Integer.parseInt(this.sentence.substring(begin + 16, end));
+				String fileName = getRequestedFile();
+				String filePath = "Webpage" + fileName;
+				begin = this.sentence.indexOf("\r\n\r\n");
+				String fileToWrite = this.sentence.substring(begin+4, begin+4+lengthBody);
+				File file = new File(filePath);
+				FileWriter writer = new FileWriter(file, true);
+				writer.write(fileToWrite);
+				writer.close();
+			}
+			catch (IOException exc) {
+				setStatusCode(500);
+			}
+			
+		}
+		String header = createHeader(getRequestedFile(), new byte[lengthBody]);
+		try {
+			outToClient.writeBytes(header);
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
 	}
 	
 	private String createHeader(String fileName, byte[] pageToReturn) {
@@ -226,7 +251,7 @@ public class Handler implements Runnable {
 		header += "Content-type: ";
 		int begin = fileName.indexOf(".") + 1;
 		String fileExtension = fileName.substring(begin);
-		if (fileExtension.equalsIgnoreCase("html")) {
+		if (fileExtension.equalsIgnoreCase("html") || fileExtension.equalsIgnoreCase("txt")) {
 			header += "text/html";
 		}
 		else {
