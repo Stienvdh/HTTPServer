@@ -12,7 +12,9 @@ public class HTTPServer {
 			Socket clientSocket = serverSocket.accept();
 			if (!(clientSocket == null)) {
 				System.out.println("found client");
-				(new Handler(clientSocket)).run();
+				Handler handler = new Handler(clientSocket);
+				Thread thread = new Thread(handler);
+				thread.start();
 			}
 			System.out.println("end");
 		}
