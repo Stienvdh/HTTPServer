@@ -44,27 +44,28 @@ public class Handler implements Runnable {
 				this.statusCode = 400;
 			}
 			
-			if (this.sentence.contains("GET")) {
-				executeGET();
-			}
-			else if (this.sentence.contains("HEAD")) {
-				executeHEAD();
-			}
-			else if (this.sentence.contains("PUT")) {
-				executePUT();
-			}
-			else if (this.sentence.contains("POST")) {
-				executePOST();
-			}
-			else {
-				this.statusCode = 400;
+			if (this.statusCode == 200) {
+				if (this.sentence.contains("GET")) {
+					executeGET();
+				}
+				else if (this.sentence.contains("HEAD")) {
+					executeHEAD();
+				}
+				else if (this.sentence.contains("PUT")) {
+					executePUT();
+				}
+				else if (this.sentence.contains("POST")) {
+					executePOST();
+				}
+				else {
+					this.statusCode = 400;
+				}
 			}
 			
 			if (this.statusCode != 200) {
 				try {
 					String fileName = getRequestedFile();
-					byte[] pageToReturn = readFile(fileName);
-					String header = createHeader(fileName, pageToReturn);
+					String header = createHeader(fileName, new byte[0]);
 					outToClient.writeChars(header);
 				}
 				catch (IOException exc) {
@@ -188,7 +189,9 @@ public class Handler implements Runnable {
 		}
 		header += "\r\n";
 		
-		header += "Content-Length: " + pageToReturn.length + "\r\n";
+		if (this.statusCode == 200) {
+			header += "Content-Length: " + pageToReturn.length + "\r\n";
+		}
 		
 		long dateTime = System.currentTimeMillis();				
 		SimpleDateFormat dateTimeFormat = new SimpleDateFormat("E, dd MMM Y HH:mm:ss");
