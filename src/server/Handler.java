@@ -11,25 +11,30 @@ import java.util.Date;
 
 public class Handler implements Runnable {
 
-	public Handler(Socket clientSocket) throws IOException {
+	public Handler(Socket clientSocket) {
 		this.clientSocket = clientSocket;
-		this.inFromClient = new BufferedInputStream(this.clientSocket.getInputStream());
-		this.outToClient = new DataOutputStream(this.clientSocket.getOutputStream());
+		try {
+			this.inFromClient = new BufferedInputStream(this.clientSocket.getInputStream());
+			this.outToClient = new DataOutputStream(this.clientSocket.getOutputStream());
+		} catch (IOException e) {
+			this.statusCode = 500;
+		}
 	}
 	
 	public void run() {
 		int nextByte = 0;
-		try {
-			nextByte = this.inFromClient.read();
-		} catch (IOException e) {
-			e.printStackTrace();
+		if (this.statusCode == 200) {
+			try {
+				nextByte = this.inFromClient.read();
+			} catch (IOException e) {
+				this.statusCode = 500;
+			}
+			if (nextByte == -1) {
+				endConnection();
+			}
 		}
 		
-		if (nextByte == -1) {
-			endConnection();
-		}
-		
-		if (! this.clientSocket.isClosed()) {
+		if (! this.clientSocket.isClosed() && this.statusCode == 200) {
 			try {
 				byte[] request = new byte[1000000];
 				this.inFromClient.read(request);
@@ -63,13 +68,19 @@ public class Handler implements Runnable {
 			}
 			
 			if (this.statusCode != 200) {
+				byte[] pageToReturn = new byte[0];
+				String fileName = getRequestedFile();
 				try {
-					String fileName = getRequestedFile();
-					String header = createHeader(fileName, new byte[0]);
-					outToClient.writeChars(header);
+					pageToReturn = readFile(fileName);
 				}
 				catch (IOException exc) {
-					exc.printStackTrace();
+					this.statusCode = 404;
+				}
+				String header = createHeader(fileName, pageToReturn);
+				try {
+					this.outToClient.writeChars(header);
+				} catch (IOException e) {
+					e.printStackTrace();
 				}
 			}
 			
@@ -152,7 +163,6 @@ public class Handler implements Runnable {
 				writer.close();
 
 				String header = createHeader(fileName, new byte[lengthBody]);
-				System.out.println("header created");
 				outToClient.writeBytes(header);
 			}
 			catch (IOException exc) {
@@ -259,6 +269,7 @@ public class Handler implements Runnable {
 	private void endConnection() {
 		try {
 			this.clientSocket.close();
+			System.out.println("Ended a connection");
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
@@ -275,5 +286,4 @@ public class Handler implements Runnable {
 	public String hostName = "localhost:9999";
 	public String sentence;
 	public int HTTP;
-
 }

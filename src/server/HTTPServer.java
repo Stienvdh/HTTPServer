@@ -7,6 +7,7 @@ public class HTTPServer {
 	
 	public HTTPServer() throws IOException {
 		this.serverSocket = new ServerSocket(9999);
+		int counter = 0;
 		while (true) {
 			Socket clientSocket = serverSocket.accept();
 			if (!(clientSocket == null)) {
