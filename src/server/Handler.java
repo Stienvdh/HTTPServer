@@ -383,8 +383,6 @@ public class Handler implements Runnable {
 	 * 
 	 * @effect	The method closes the socket with the client.
 	 */
-	
-	
 	private void endConnection() {
 		try {
 			this.clientSocket.close();
@@ -397,7 +395,6 @@ public class Handler implements Runnable {
 	/**
 	 * Returns the host name of this ChatClient.
 	 */
-	
 	private String getHost() {
 		return this.hostName;
 	}
