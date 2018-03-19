@@ -11,6 +11,15 @@ import java.util.Date;
 
 public class Handler implements Runnable {
 
+	/**
+	 * Create a new Handler with a given socket.
+	 *
+	 * @param socket			The socket to communicate with
+	 * 
+	 * @post	The new Handler is instantiated with the given arguments. It now has an input- and outputstream,
+	 * 			by which communication with the given socket is made possible.
+	 */
+	
 	public Handler(Socket clientSocket) {
 		this.clientSocket = clientSocket;
 		try {
@@ -94,6 +103,14 @@ public class Handler implements Runnable {
 		int begin = this.sentence.indexOf("HTTP/");
 		this.HTTP = Integer.parseInt(this.sentence.substring(begin+7, begin + 8));
 	}
+	
+	/**
+	 * Handle a GET request. 
+	 * 
+	 * @effect	The method reads the requested file.
+	 * @effect 	The method creates an appropriate header for the given status code and file.
+	 * @effect	The method writes the header and the content of the file to the output.
+	 */
 
 	private void executeGET() {
 		byte[] pageToReturn = null;
@@ -121,6 +138,14 @@ public class Handler implements Runnable {
 		}
 	}
 	
+	/**
+	 * Handle an HEAD request. 
+	 * 
+	 * @effect	The method reads the requested file.
+	 * @effect 	The method creates an appropriate header for the given status code and file.
+	 * @effect	The method writes the header to the output.
+	 */
+	
 	private void executeHEAD() {
 		byte[] pageToReturn = null;
 		String fileName = null;
@@ -145,7 +170,15 @@ public class Handler implements Runnable {
 			}
 		}
 	}
-
+	
+	/**
+	 * Handle a PUT request. 
+	 * 
+	 * @effect	The method generates a directory for the given file to store.
+	 * @effect 	The method creates a text file with the given content in the created directory.
+	 * @effect	The method writes the appropriate header and writes it to the output.
+	 */
+	
 	private void executePUT() {
 		if (this.statusCode == 200) {
 			try {
@@ -171,9 +204,30 @@ public class Handler implements Runnable {
 		}
 	}
 
+	/**
+	 * Handle a PUT request. 
+	 * 
+	 * @effect	The method generates a directory for the given file to store.
+	 * @effect 	The method appends the given content to the already stored content in the text file.
+	 * @effect	The method creates a new file or rewrite an existing file with the merged content.
+	 * @effect	The method writes the appropriate header and writes it to the output.
+	 */
+	
 	private void executePOST() {
 		
 	}
+	
+	/**
+	 * Creates the header that will be sent to the ChatClient through the server. 
+	 * 
+	 * @param fileName	The name of the file that is requested. 
+	 * @param pageToReturn	The content of the file that is requested. 
+	 * 
+	 * @effect	The method creates an header that exist of the appropriate statuscode, content types, content length and date
+	 * @effect	If the given file isn't modified after the if modified since date, the status code will be set to 304.
+	 * 
+	 * @return	The method returns a string, that corresponds to the header that will be sent to the ChatClient.
+	 */
 	
 	private String createHeader(String fileName, byte[] pageToReturn) {
 		String header = "HTTP/1." + this.HTTP + " ";
@@ -236,11 +290,25 @@ public class Handler implements Runnable {
 		return header;
 	}
 
+	/**
+	 * Creates the header that will be sent to the ChatClient through the server. 
+	 * 
+	 * @param fileName	The name of the file that is requested. 
+	 * 
+	 * @return	The method returns a byte array, that contains all the bytes of the given filename.
+	 */
+	
 	private byte[] readFile(String fileName) throws IOException {
 		Path filePath = Paths.get("Webpage" + fileName);
 		return Files.readAllBytes(filePath);
 	}
 
+	/**
+	 * A method to fetch the filename from the given HTTP command. 
+	 * 
+	 * @return	The method returns a string, that contains the filename in the command between the first slash and the "HTTP/".
+	 */
+	
 	private String getRequestedFile() {
 		int begin = this.sentence.indexOf("/");
 		int end = this.sentence.indexOf("HTTP/");
@@ -252,6 +320,12 @@ public class Handler implements Runnable {
 		return fileName;
 	}
 
+	/**
+	 * A method to fetch the host from an header. 
+	 * 
+	 * @return	The method returns a string, that contains the filename in the command between the first slash and the "HTTP/".
+	 */
+	
 	private String getRequestedHost() {
 		String host = null;
 		if (containsHostHeader()) {
@@ -262,10 +336,23 @@ public class Handler implements Runnable {
 		return host;
 	}
 
+	/**
+	 * A method to check whether the header contains a host. 
+	 * 
+	 * @return	The method returns a boolean, depending on whether there is a host in the header.
+	 */
+	
 	private boolean containsHostHeader() {
 		return (this.sentence.contains("\r\nHost:"));
 	}
-
+	
+	/**
+	 * A method to end the connection with the client. 
+	 * 
+	 * @effect	The method closes the socket with the client.
+	 */
+	
+	
 	private void endConnection() {
 		try {
 			this.clientSocket.close();
@@ -274,6 +361,10 @@ public class Handler implements Runnable {
 			e.printStackTrace();
 		}
 	}
+	
+	/**
+	 * Returns the host name of this ChatClient.
+	 */
 	
 	private String getHost() {
 		return this.hostName;
