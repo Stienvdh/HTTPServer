@@ -35,16 +35,16 @@ public class Handler implements Runnable {
 				this.inFromClient.read(request);
 				byte[] firstByte = new byte[]{(byte) nextByte};
 				this.sentence = (new String(firstByte)) + (new String(request));
+				setHTTP();
 			}
 			catch (IOException exc) {
 				this.statusCode = 500;
 			}
 			
-			if (!(containsHostHeader()) || !(getHost().equals(getRequestedHost())) ) {
-				this.statusCode = 400;
-			}
-			
 			if (this.statusCode == 200) {
+				if (!(containsHostHeader()) || !(getHost().equals(getRequestedHost())) ) {
+					this.statusCode = 400;
+				}
 				if (this.sentence.contains("GET")) {
 					executeGET();
 				}
@@ -73,10 +73,17 @@ public class Handler implements Runnable {
 				}
 			}
 			
-			run();
+			if (this.HTTP == 1) {
+				run();
+			}
 		}
 	}
 	
+	private void setHTTP() {
+		int begin = this.sentence.indexOf("HTTP/");
+		this.HTTP = Integer.parseInt(this.sentence.substring(begin+7, begin + 8));
+	}
+
 	private void executeGET() {
 		byte[] pageToReturn = null;
 		String fileName = null;
