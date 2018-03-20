@@ -9,6 +9,13 @@ import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 
+/**
+ * A class to implement a Handler, which handles a client request to a local HTTP server.
+ * 
+ * @invar	A Handler is always instantiated with a client socket, an input- and outputstream, 
+ * 			a status code, a host name and a request sentence. 
+ * @invar	A Handler communicates with the client according to the HTTP/1.1 protocol.
+ */
 public class Handler implements Runnable {
 
 	/**
@@ -18,6 +25,8 @@ public class Handler implements Runnable {
 	 * 
 	 * @post	The new Handler is instantiated with the given arguments. It now has an input- and outputstream,
 	 * 			by which communication with the given socket is made possible.
+	 * @post	If any problem accurs when instantiating the input- or outputstream, the status code
+	 * 			of this Handler is set to 500.
 	 */
 	public Handler(Socket clientSocket) {
 		setClientSocket(clientSocket);
@@ -30,9 +39,21 @@ public class Handler implements Runnable {
 	}
 
 	/**
-	 * Run the server. 
+	 * Handle the current request of this Handler.
 	 * 
-	 * @effect	
+	 * @effect	The method reads the first byte of its inputstream. If -1 is returned, this indicates that 
+	 * 			the stream has been closed by the client and the connection to the client is closed. 
+	 * @effect	Otherwise, the request from the client is read and execution is rerouted to
+	 * 			the appropriate method to handle the request.
+	 * @effect	After finishing execution, the method calls itself, in order to maintain a persistent
+	 * 			connection.
+	 * 
+	 * @post	If a problem concerning input- and outputstream occurs, and this is the first abnormality
+	 * 			to occur, the statuscode is set to 500.
+	 * @post	If the request does not contain a host header, or the host header does not refer to this HTTPServer, 
+	 * 			and this is the first abnormality to occur, the statuscode is set to 400.
+	 * @post	If the requested page is not found, and this is the first abnormality to occur, the status 
+	 * 			code is set to 404.
 	 */
 	public void run() {
 		int nextByte = 0;
@@ -53,7 +74,6 @@ public class Handler implements Runnable {
 				getInFromClient().read(request);
 				byte[] firstByte = new byte[]{(byte) nextByte};
 				setSentence((new String(firstByte)) + (new String(request)));
-				setHTTP();
 			}
 			catch (IOException exc) {
 				setStatusCode(500);
@@ -61,8 +81,6 @@ public class Handler implements Runnable {
 			
 			if (getStatusCode() == 200) {
 				if (!(containsHostHeader()) || !(getHostName().equals(getRequestedHost())) ) {
-					System.out.println(getRequestedHost());
-					System.out.println(getHostName());
 					setStatusCode(400);
 				}
 				if (getSentence().contains("GET")) {
@@ -98,31 +116,23 @@ public class Handler implements Runnable {
 					e.printStackTrace();
 				}
 			}
-			
-			if (getHTTP() == 1) {
-				run();
-			}
+			run();
 		}
-	}
-	
-	/**
-	 * A method to set the HTTP.
-	 * 
-	 * @effect	The method sets the HTTP??
-	 */
-	private void setHTTP() {
-		int begin = getSentence().indexOf("HTTP/");
-		this.HTTP = Integer.parseInt(getSentence().substring(begin+7, begin + 8));
 	}
 	
 	/**
 	 * Handle a GET request. 
 	 * 
-	 * @effect	The method reads the requested file.
+	 * @effect	The method determines the requested file from the client request.
 	 * @effect 	The method creates an appropriate header for the given status code and file.
-	 * @effect	The method writes the header and the content of the file to the output.
+	 * 			| createHeader(fileName, pageToReutrn)
+	 * @effect	The method writes the header and the content of the file to the outputstream and thus
+	 * 			sends it to the client.
+	 * 
+	 * @post	If the requested page is not found, and this is the first abnormality to occur, the status 
+	 * 			code is set to 404.
 	 */
-	private void executeGET() {
+	public void executeGET() {
 		byte[] pageToReturn = new byte[0];
 		String fileName = null;
 		
@@ -132,7 +142,7 @@ public class Handler implements Runnable {
 				pageToReturn = readFile(fileName);
 			}
 			catch (IOException exc) {
-				setStatusCode(400);
+				setStatusCode(404);
 			}
 		}
 		
@@ -150,9 +160,13 @@ public class Handler implements Runnable {
 	 * 
 	 * @effect	The method reads the requested file.
 	 * @effect 	The method creates an appropriate header for the given status code and file.
-	 * @effect	The method writes the header to the output.
+	 * 			| createHeader(fileName, pageToReturn)
+	 * @effect	The method writes the header to the outputstream and thus sends it to the client.
+	 * 
+	 * @post	If the requested page is not found, and this is the first abnormality to occur, the status 
+	 * 			code is set to 404.
 	 */
-	private void executeHEAD() {
+	public void executeHEAD() {
 		byte[] pageToReturn = new byte[0];
 		String fileName = null;
 		
@@ -177,11 +191,15 @@ public class Handler implements Runnable {
 	/**
 	 * Handle a PUT request. 
 	 * 
-	 * @effect	The method generates a directory for the given file to store.
-	 * @effect 	The method creates a text file with the given content in the created directory.
-	 * @effect	The method writes the appropriate header and writes it to the output.
+	 * @effect 	The method creates a text file with the given content in the same local directory 
+	 * 			where the /index.html file of the server is located, 
+	 * 			or overwrites it with the given content if it already exists. 
+	 * @effect	The method writes the appropriate header and writes it to its outputstream.
+	 * 
+	 * @post	If a problem concerning input- and outputstream occurs, and this is the first abnormality
+	 * 			to occur, the statuscode is set to 500.
 	 */
-	private void executePUT() {
+	public void executePUT() {
 		int lengthBody = 0;
 		if (getStatusCode() == 200) {
 			try {
@@ -202,7 +220,7 @@ public class Handler implements Runnable {
 			}
 			
 		}
-		String header = createHeader(getRequestedFile(), new byte[lengthBody]);
+		String header = createHeader(getRequestedFile(), new byte[0]);
 		try {
 			getOutToClient().writeBytes(header);
 		} catch (IOException e) {
@@ -211,14 +229,17 @@ public class Handler implements Runnable {
 	}
 
 	/**
-	 * Handle a PUT request. 
+	 * Handle a POST request. 
 	 * 
-	 * @effect	The method generates a directory for the given file to store.
-	 * @effect 	The method appends the given content to the already stored content in the text file.
-	 * @effect	The method creates a new file or rewrite an existing file with the merged content.
-	 * @effect	The method writes the appropriate header and writes it to the output.
+	 * @effect 	The method creates a text file with the given content in the same local directory 
+	 * 			where the /index.html file of the server is located, 
+	 * 			or append it with the given content if it already exists. 
+	 * @effect	The method writes the appropriate header and writes it to its outputstream.
+	 * 
+	 * @post	If a problem concerning input- and outputstream occurs, and this is the first abnormality
+	 * 			to occur, the statuscode is set to 500.
 	 */
-	private void executePOST() {
+	public void executePOST() {
 		int lengthBody = 0;
 		if (getStatusCode() == 200) {
 			try {
@@ -239,7 +260,7 @@ public class Handler implements Runnable {
 			}
 			
 		}
-		String header = createHeader(getRequestedFile(), new byte[lengthBody]);
+		String header = createHeader(getRequestedFile(), new byte[0]);
 		try {
 			getOutToClient().writeBytes(header);
 		} catch (IOException e) {
@@ -250,19 +271,25 @@ public class Handler implements Runnable {
 	/**
 	 * Creates the header that will be sent to the ChatClient through the server. 
 	 * 
-	 * @param fileName	The name of the file that is requested. 
+	 * @param fileName		The name of the file that is requested. 
 	 * @param pageToReturn	The content of the file that is requested. 
 	 * 
-	 * @effect	The method creates an header that exist of the appropriate status code, content types, content length and date
-	 * @effect	If the given file isn't modified after the if modified since date, the status code will be set to 304.
+	 * @effect	The method creates a header that exist of the appropriate status code, content type, content length and date.
+	 * 
+	 * @post	If the given file isn't modified after the 'If-Modified-Since' date (if this is present is the request), 
+	 * 			and this is the first abnormality to occur, the status code will be set to 304.
+	 * @post	If an 'If-Modified-Since'-date is included in the request, but it is not an HEAD or GET
+	 * 			request, and this is the first abnormality to occur, the status code is set to 400.
+	 * @post	If a problem concerning input- and outputstream occurs, and this is the first abnormality
+	 * 			to occur, the statuscode is set to 500.
 	 * 
 	 * @return	The method returns a string, that corresponds to the header that will be sent to the ChatClient.
 	 */
-	private String createHeader(String fileName, byte[] pageToReturn) {
-		String header = "HTTP/1." + getHTTP() + " ";
+	public String createHeader(String fileName, byte[] pageToReturn) {
+		String header = "HTTP/1.1 ";
 		
 		long dateTime = System.currentTimeMillis();		
-		SimpleDateFormat dateTimeFormat = new SimpleDateFormat("E, dd MMM Y HH:mm:ss");
+		SimpleDateFormat dateTimeFormat = new SimpleDateFormat("E, dd MMM yyyy HH:mm:ss");
 
 		if (getSentence().contains("If-Modified-Since: ")) {
 			if (! getSentence().contains("GET") || ! getSentence().contains("HEAD")) {
@@ -273,8 +300,9 @@ public class Handler implements Runnable {
 			String ifModifiedSince = getSentence().substring(begin + 19, end);
 			ifModifiedSince = ifModifiedSince.trim();
 			try {
-				Date date1 = dateTimeFormat.parse(dateTimeFormat.format(dateTime));
-				Date date2 = dateTimeFormat.parse(ifModifiedSince);
+				Date date1 = dateTimeFormat.parse(dateTimeFormat.format(
+						(new File("Webpage/"+getRequestedFile())).lastModified()));
+				Date date2 = dateTimeFormat.parse("di, 20 mrt 2018 23:38:38");
 				if (date1.before(date2)) {
 					setStatusCode(304);
 				}
@@ -290,7 +318,6 @@ public class Handler implements Runnable {
 			header += "404 Not Found";
 		}
 		else if (getStatusCode() == 400) {
-			System.out.println("400");
 			header += "400 Bad Request";
 		}
 		else if (getStatusCode() == 500) {
@@ -312,9 +339,10 @@ public class Handler implements Runnable {
 		}
 		header += "\r\n";
 		
-		if (getStatusCode() == 200) {
-			header += "Content-Length: " + pageToReturn.length + "\r\n";
+		if (getStatusCode()!=200) {
+			pageToReturn = new byte[0];
 		}
+		header += "Content-Length: " + pageToReturn.length + "\r\n";
 				
 		header += "Date: " + dateTimeFormat.format(dateTime) + " GMT\r\n\r\n";
 		
@@ -322,32 +350,35 @@ public class Handler implements Runnable {
 	}
 
 	/**
-	 * Creates the header that will be sent to the ChatClient through the server. 
+	 * Reads the file that is requested by hte client. 
 	 * 
-	 * @param fileName	The name of the file that is requested. 
+	 * @param fileName		The name of the file that is requested. 
 	 * 
-	 * @return	The method returns a byte array, that contains all the bytes of the given filename.
+	 * @return	The method returns a byte array, that contains the content of the requested file.
+	 * 
+	 * @throws IOException	If any problem concerning reading the file occurs.
 	 */
-	private byte[] readFile(String fileName) throws IOException {
+	public byte[] readFile(String fileName) throws IOException {
 		Path filePath = Paths.get("Webpage" + fileName);
 		return Files.readAllBytes(filePath);
 	}
 
 	/**
-	 * A method to check whether the header contains a host. 
+	 * A method to check whether the header contains a host header. 
 	 * 
-	 * @return	The method returns a boolean, depending on whether there is a host in the header.
+	 * @return	The method returns a boolean, depending on whether there is a host header in the
+	 * 			client request.
 	 */
-	private boolean containsHostHeader() {
+	public boolean containsHostHeader() {
 		return (getSentence().contains("\r\nHost:"));
 	}
 	
 	/**
 	 * A method to end the connection with the client. 
 	 * 
-	 * @effect	The method closes the socket with the client.
+	 * @effect	The method closes the client socket.
 	 */
-	private void endConnection() {
+	public void endConnection() {
 		try {
 			getClientSocket().close();
 			System.out.println("Ended a connection");
@@ -357,15 +388,12 @@ public class Handler implements Runnable {
 	}
 	
 	/**
-	 * Returns the host name and port number of this server.
-	 */
-	
-	/**
-	 * A method to fetch the host from an header. 
+	 * A method to fetch the requested host from a client request, mentioned in its host header field. 
 	 * 
-	 * @return	The method returns a string, that contains the host.
+	 * @return	The method returns a string, that contains the requested host.
+	 * @return	If no host header is present, null is returned.
 	 */
-	private String getRequestedHost() {
+	public String getRequestedHost() {
 		String host = null;
 		if (containsHostHeader()) {
 			int begin = getSentence().indexOf("Host:");
@@ -376,11 +404,13 @@ public class Handler implements Runnable {
 	}
 
 	/**
-	 * A method to fetch the filename from the given HTTP command. 
+	 * A method to fetch the filename from the given client request. 
 	 * 
-	 * @return	The method returns a string, that contains the filename in the command between the first slash and the "HTTP/".
+	 * @return	The method returns a string, that contains the filename in the command between the first slash in
+	 * 			the request and "HTTP/".
+	 * @return	If the filename ends by a forward slash, the filename is appended by 'index.html'.
 	 */
-	private String getRequestedFile() {
+	public String getRequestedFile() {
 		int begin = getSentence().indexOf("/");
 		int end = getSentence().indexOf("HTTP/");
 		String fileName = getSentence().substring(begin, end);
@@ -392,58 +422,51 @@ public class Handler implements Runnable {
 	}
 
 	/**
-	 * Returns the clientSocket of the server.
+	 * Returns the clientSocket of this Handler.
 	 */
 	private Socket getClientSocket() {
 		return this.clientSocket;
 	}
 
 	/**
-	 * Returns the inputstream of the server.
+	 * Returns the inputstream of this h-Handler.
 	 */
 	private BufferedInputStream getInFromClient() {
 		return this.inFromClient;
 	}
 
 	/**
-	 * Returns the outToClient of the server.
+	 * Returns the outputstream of this Handler.
 	 */
 	private DataOutputStream getOutToClient() {
 		return this.outToClient;
 	}
 
 	/**
-	 * Returns the code of the status.
+	 * Returns the status code of this Handler.
 	 */
 	private int getStatusCode() {
 		return this.statusCode;
 	}
 
 	/**
-	 * Returns the hostName of the server.
-	 */
-	private String getHostName() {
-		return hostName;
-	}
-
-	/**
-	 * Returns the sentence of the server.
+	 * Returns the client request of this Handler.
 	 */
 	private String getSentence() {
 		return sentence;
 	}
 
 	/**
-	 * Returns the HTTP of the server.
+	 * Returns the hostName of this Handler.
 	 */
-	private int getHTTP() {
-		return HTTP;
+	private String getHostName() {
+		return hostName;
 	}
 
 	/**
-	 * @param clientSocket	The client socket of the server	
-	 * 
 	 * Set the client socket to the given clientSocket. 
+	 * 
+	 * @param clientSocket	The new client socket of this Handler.
 	 * 
 	 * @post	| new.getclientSocket() == clientSocket
 	 */
@@ -452,9 +475,9 @@ public class Handler implements Runnable {
 	}
 	
 	/**
-	 * @param inFromClient	The inputstream from the client.	
-	 * 
 	 * Set the inputstream to the given inputstream. 
+	 * 
+	 * @param inFromClient	The inputstream of this Handler.
 	 * 
 	 * @post	| new.getinFromClient() == inFromClient
 	 */
@@ -463,9 +486,9 @@ public class Handler implements Runnable {
 	}
 	
 	/**
-	 * @param outToClient	The outputstream of the server	
-	 * 
 	 * Set the outputstream to the given outputstream. 
+	 * 
+	 * @param outToClient	The outputstream of this Handler.
 	 * 
 	 * @post	| new.getoutToClient() == outToClient
 	 */
@@ -474,9 +497,12 @@ public class Handler implements Runnable {
 	}
 	
 	/**
-	 * @param status	The code of the status of the request.	
+	 * Set the status code to the given status code.
 	 * 
-	 * Set the status code to the given status. 
+	 * @param status	The new status code of this Handler. 
+	 * 
+	 * @effect	The status code of this Handler is only change if its current status code is 200, so the
+	 * 			first abnormality is the abnormality reported by the Handler.
 	 * 
 	 * @post	| new.getstatusCode() == status
 	 */
@@ -485,16 +511,7 @@ public class Handler implements Runnable {
 	}
 
 	/**
-	 * @param hostName the hostName to set
-	 * 
-	 * @post	| new.getHostName() == hostName
-	 */
-	private void setHostName(String hostName) {
-		this.hostName = hostName;
-	}
-
-	/**
-	 * @param sentence the sentence to set
+	 * @param sentence 	The current client request of this Handler
 	 * 
 	 * @post	| new.getSentence() == sentence
 	 */
@@ -502,20 +519,10 @@ public class Handler implements Runnable {
 		this.sentence = sentence;
 	}
 
-	/**
-	 * @param HTTP the HTTP to set
-	 * 
-	 * @post	| new.getHTTP() == HTTP
-	 */
-	private void setHTTP(int HTTP) {
-		this.HTTP = HTTP;
-	}
-
 	private Socket clientSocket;
 	private BufferedInputStream inFromClient;
 	private DataOutputStream outToClient;
 	private int statusCode = 200;
-	private String hostName = "localhost:9999";
 	private String sentence;
-	private int HTTP;
+	private String hostName = "localhost:9999";
 }
