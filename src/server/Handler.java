@@ -266,7 +266,7 @@ public class Handler implements Runnable {
 		long dateTime = System.currentTimeMillis();		
 		SimpleDateFormat dateTimeFormat = new SimpleDateFormat("E, dd MMM Y HH:mm:ss");
 		if (this.sentence.contains("If-Modified-Since: ")) {
-			if (! this.sentence.contains("GET") || ! this.sentence.contains("GET")) {
+			if (! this.sentence.contains("GET") || ! this.sentence.contains("HEAD")) {
 				setStatusCode(400);
 			}
 			int begin = this.sentence.indexOf("If-Modified-Since:");
