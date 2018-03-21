@@ -507,7 +507,9 @@ public class Handler implements Runnable {
 	 * @post	| new.getstatusCode() == status
 	 */
 	private void setStatusCode(int status) {
-		this.statusCode = status;
+		if (getStatusCode() == 200) {
+			this.statusCode = status;
+		}
 	}
 
 	/**
