@@ -247,13 +247,16 @@ public class Handler implements Runnable {
 				int end = getSentence().indexOf("\r\n", begin);
 				lengthBody = Integer.parseInt(getSentence().substring(begin + 16, end));
 				String fileName = getRequestedFile();
-				String filePath = "Webpage" + fileName;
-				begin = getSentence().indexOf("\r\n\r\n");
-				String fileToWrite = getSentence().substring(begin+4, begin+4+lengthBody);
-				File file = new File(filePath);
-				FileWriter writer = new FileWriter(file, true);
-				writer.write(fileToWrite);
-				writer.close();
+				if (fileName.equals("/CSAP")) {
+					String filePath = "Webpage" + fileName + ".html";
+					begin = getSentence().indexOf("\r\n\r\n");
+					String fileToWrite = getSentence().substring(begin + 4, begin + 4 + lengthBody);
+					File file = new File(filePath);
+					FileWriter writer = new FileWriter(file, true);
+					fileToWrite += "<br></br><br></br>";
+					writer.write(fileToWrite);
+					writer.close();
+				}
 			}
 			catch (IOException exc) {
 				setStatusCode(500);
@@ -416,7 +419,7 @@ public class Handler implements Runnable {
 		String fileName = getSentence().substring(begin, end);
 		fileName = fileName.trim();
 		if (fileName.endsWith("/")) {
-			fileName += "index.html";
+			fileName += "CSAP.html";
 		}
 		return fileName;
 	}
