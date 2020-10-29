@@ -1,4 +1,4 @@
-FROM java:8
+FROM openjdk:11
 WORKDIR /
 COPY HTTPServer.jar .
 EXPOSE 9999
